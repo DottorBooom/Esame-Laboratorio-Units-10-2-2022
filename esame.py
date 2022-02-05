@@ -30,7 +30,7 @@ class CSVFile(ABC):
             print('Errore in apertura del file: "{}"'.format(e))
 
     @abstractmethod
-    def get_data(self):
+    def get_data(self) -> list[list]:
         if not self.can_read:
             raise ExamException("Impossibile aprire il file")
         else:
@@ -40,7 +40,6 @@ class CSVFile(ABC):
             for line in my_file:
                 
                 elements = line.split(',')
-                elements[1] = int(elements[1])
                 data.append(elements)
 
             my_file.close()
@@ -55,14 +54,42 @@ class CSVFileTimeSeriesFile(CSVFile):
     def __init__(self, name) -> None:
         super().__init__(name)
 
-    def get_data(self):
-        return super().get_data()
+    def get_data(self) -> list[list]:
+        data = super().get_data()
+
+        elements = []
+        for i in data:
+            i[1] = int(i[1])
+            elements.append(i)
+
+        return elements
+
 #==============================
 #  Metodo per calcolare la media
 #==============================
 
 def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[float]:
-    pass
+
+    data = [i[1] for i in time_series if int(i[0][:4]) >= int(first_year) and int(i[0][:4]) <= int(last_year)]
+    years = int(last_year)-int(first_year)+1
+    result = [[]for i in range(0,years)]    
+
+    conta = 0
+
+    for i in range(0,len(data)):
+        if i != 0 and i % 12 == 0: 
+                conta+=1
+        result[conta].append(data[i])
+
+    avg = []
+    somma = 0
+    for i in range(0,12):
+        for j in range(1,years):
+            somma += result[j][i] - result[j-1][i]
+        avg.append(somma/(years-1)) 
+        somma = 0
+    
+    return avg
 
 #==============================
 #  Main per eseguuire comandi in locale
@@ -70,7 +97,8 @@ def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[f
 
 def main() -> None:
     file = CSVFileTimeSeriesFile("data.csv")
-    print(file.get_data())
+
+    print(compute_avg_monthly_difference(file.get_data(),"1949","1951"))
 
 if __name__ == "__main__":
     main()
