@@ -70,6 +70,15 @@ class CSVFileTimeSeriesFile(CSVFile):
 
 def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[float]:
 
+    if type(first_year) is not str:
+        raise ExamException(f"First_year non è un valore computabile. Tipo di dato inserito: {type(first_year)}")
+    if type(last_year) is not str:
+        raise ExamException(f"Last_year non è un valore computabile. Tipo di dato inserito: {type(last_year)}")
+    if first_year.isdigit() is False:
+        raise ExamException(f"First_year non è un valore trasformabile ad intero. Valore inserito: {first_year}")
+    if last_year.isdigit() is False:
+        raise ExamException(f"Last_year non è un valore trasformabile ad intero. Valore inserito: {last_year}")
+
     data = [i[1] for i in time_series if int(i[0][:4]) >= int(first_year) and int(i[0][:4]) <= int(last_year)]
     years = int(last_year)-int(first_year)+1
     result = [[]for i in range(0,years)]    
