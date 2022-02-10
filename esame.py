@@ -105,15 +105,15 @@ class CSVTimeSeriesFile(CSVFile):
 
                 if clean_data:
                     for j in clean_data:
-                        prev_date = j[0]
-                        if i[0] == prev_date:   
-                            raise ExamException("Rilevato record di timestamp duplicato")
+                            prev_date = j[0]
+                            if i[0] == prev_date:   
+                                raise ExamException("Rilevato record di timestamp duplicato")
 
                     prev_date = clean_data[-1][0]
                     if i[0] < prev_date:
                         raise ExamException("Rilevato record di timestamp non ordinato")
 
-                clean_data.append(i[:2])
+                clean_data.append([i[0],int(i[1])])
 
         if not clean_data:
             raise ExamException("File vuoto o errato")
@@ -121,52 +121,96 @@ class CSVTimeSeriesFile(CSVFile):
         return clean_data
 
 #==============================
-#  Metodo per calcolare la media
+#  Metodo per sanificare i dati
 #==============================
 
-def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[float]:
-
-    if type(first_year) is not str:
+def sanitize(time_series, first_year, last_year):
+    if not isinstance(first_year,str):
         raise ExamException(f"First_year non è un valore computabile. Tipo di dato inserito: {type(first_year)}")
-    if type(last_year) is not str:
+    if not isinstance(last_year,str):
         raise ExamException(f"Last_year non è un valore computabile. Tipo di dato inserito: {type(last_year)}")
     if first_year.isdigit() is False:
         raise ExamException(f"First_year non è un valore trasformabile ad intero. Valore inserito: {first_year}")
     if last_year.isdigit() is False:
         raise ExamException(f"Last_year non è un valore trasformabile ad intero. Valore inserito: {last_year}")
+    if first_year >= last_year:
+        raise ExamException("Il valore di last_layer e/o di first_layer è inesatto")
+    if not isinstance(time_series,list):
+        raise ExamException(f"Time_series non è una lista di liste. Valore passato: {time_series}")
+    if first_year < time_series[0][0][:4]:
+        raise ExamException("First_year non è presente all'interno del file")
+    if last_year > time_series[-1][0][:4]:
+        raise ExamException("Last_year non è presente all'interno del file")
 
-    data = [int(i[1]) for i in time_series if int(i[0][:4]) >= int(first_year) and int(i[0][:4]) <= int(last_year)]
-    years = int(last_year)-int(first_year)+1
-    result = [[]for i in range(0,years)]    
+#==============================
+#  Metodo per calcolare la media
+#==============================
 
-    conta = 0
+def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[float]:
 
-    for i in range(0,len(data)):
-        if i != 0 and i % 12 == 0: 
-                conta+=1
-        result[conta].append(data[i])
+    sanitize(time_series,first_year,last_year)
 
-    avg = []
-    somma = 0
-    conta = 0
-    for i in range(0,12):
+    data = []
+
+    count = 1
+    current_year = int(time_series[0][0][:4])
+    for i in time_series:
+        
+        if i[0][5:8] == "01" and count >= 13:
+            current_year = int(i[0][:4])
+        
+        if count >= 13: 
+                count = 1
+                current_year = int(i[0][:4])
+        elif int(i[0][:4]) != current_year and count <= 12:
+            for count in range(count,13):
+                data.append(0)
+            count = 1
+            current_year = int(i[0][:4])
+        
+        if i[0][:4] >= first_year and i[0][:4] <= last_year:
+            if int(i[0][5:8]) != count:
+                for count in range(count,int(i[0][5:8])):
+                    data.append(0)
+                data.append(i[1])
+                count = count + 2
+            else:
+                data.append(i[1])
+                
+                count = count + 1
+                
+        if(current_year > int(last_year)):
+            break        
+
+    final_data = []
+
+    years = int(len(data)/12)
+
+    for i in range(12):
+        count = 0
+        somma = 0
+
         for j in range(1,years):
-            if (result[j][i] == 0 or result[j-1][i] == 0) and years == 2:
+        #     years_sum += (data[i + (12*j)] - data[i + (12*(j-1))])
+
+            if (data[i+(12*j)] == 0 or data[i+(12*(j-1))] == 0) and years == 2:
                 somma = 0
             else: 
-                if (result[j][i] == 0 or result[j-1][i] == 0) and years > 2:
-                    conta += 1
-                    if(conta - years < 2):
+                if (data[i+(12*j)] == 0 or data[i+(12*(j-1))] == 0) and years > 2:
+                    count += 1
+                    if(years - count < 2):
                         somma = 0
                         j = years
                     else:
                         somma += 0
                 else:
-                    somma += result[j][i] - result[j-1][i]
-        avg.append(somma/(years-1))
-        somma = 0
-    
-    return avg
+                    somma += data[i+(12*j)] - data[i+(12*(j-1))]
+        try:
+            final_data.append(somma/(years-1-count))
+        except:
+            final_data.append(0)
+
+    return final_data
 
 #==============================
 #  Main per eseguuire comandi in locale
@@ -174,7 +218,7 @@ def compute_avg_monthly_difference(time_series, first_year, last_year) -> list[f
 
 def main() -> None:
     file = CSVTimeSeriesFile('data.csv')
-    #print(file.get_data())
+    #print(file.get_data()[:124])
     print(compute_avg_monthly_difference(file.get_data(),"1949","1951"))
 
 if __name__ == '__main__':
